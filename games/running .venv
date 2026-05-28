@@ -1,0 +1,6 @@
+# To run a game , for example games/asteriods.py use the powershell command :
+
+.venv\Scripts\python.exe -m py_compile games\asteroids.py
+
+
+# End of Note
