@@ -45,6 +45,7 @@ private:
         Start,
         Playing,
         Paused,
+        WaveSummary,
         GameOver
     };
 
@@ -97,6 +98,13 @@ private:
         float elapsedSeconds{0.0F};
     };
 
+    struct FloatingScore {
+        Vec2 position{};
+        int points{0};
+        float delaySeconds{0.0F};
+        float elapsedSeconds{0.0F};
+    };
+
     struct EnemySaucer {
         Vec2 position{};
         Vec2 velocity{};
@@ -129,16 +137,19 @@ private:
     void resetGame();
     void jumpToWave(int wave);
     void spawnWave();
+    void startWaveSummary();
     void spawnAsteroid(Vec2 position, AsteroidSize size);
     void splitAsteroid(const Asteroid& asteroid);
     void spawnBreakAnimation(const Asteroid& asteroid);
     void spawnSaucerExplosion(Vec2 position);
     void spawnPlayerExplosion(Vec2 position);
+    void spawnFloatingScore(Vec2 position, int points, float delaySeconds);
     void fireBullet();
     void playAsteroidHitSound(AsteroidSize size);
     void playMissileFireSound();
     void playEnemySaucerDestroyedSound();
     void playPlayerShipDestroyedSound();
+    void playWaveClearFanfareSound();
     void updateThrustSound();
     void updateBackgroundBeat(float deltaSeconds);
     void playBackgroundBeatPulse();
@@ -154,12 +165,14 @@ private:
     void updateBreakAnimations(float deltaSeconds);
     void updateSaucerExplosions(float deltaSeconds);
     void updatePlayerExplosions(float deltaSeconds);
+    void updateFloatingScores(float deltaSeconds);
     void render();
 
     void renderSplash();
     void renderStart();
     void renderPlaying();
     void renderPaused();
+    void renderWaveSummary();
     void renderGameOver();
     void renderShip();
     void renderHud();
@@ -167,6 +180,7 @@ private:
     void renderBreakAnimations();
     void renderSaucerExplosions();
     void renderPlayerExplosions();
+    void renderFloatingScores();
     void renderEnemySaucer();
     void drawText(const std::string& text, float x, float y, int scale, SDL_Color color);
     void drawGlyph(char glyph, float x, float y, int scale, SDL_Color color);
@@ -191,6 +205,7 @@ private:
     std::vector<BreakAnimation> breakAnimations_;
     std::vector<SaucerExplosion> saucerExplosions_;
     std::vector<PlayerExplosion> playerExplosions_;
+    std::vector<FloatingScore> floatingScores_;
     EnemySaucer enemySaucer_{};
 
     Texture shipTexture_{};
@@ -226,6 +241,9 @@ private:
     SDL_AudioStream* playerShipDestroyedStream_{nullptr};
     Uint8* playerShipDestroyedBuffer_{nullptr};
     Uint32 playerShipDestroyedBufferLength_{0};
+    SDL_AudioStream* waveClearFanfareStream_{nullptr};
+    Uint8* waveClearFanfareBuffer_{nullptr};
+    Uint32 waveClearFanfareBufferLength_{0};
 
     std::mt19937 rng_;
     int score_{0};
@@ -235,10 +253,17 @@ private:
     int waveStartingLargeAsteroids_{0};
     int asteroidsDestroyedThisWave_{0};
     int largeAsteroidsDestroyedThisWave_{0};
+    int enemySaucersDestroyedThisWave_{0};
+    int waveStartScore_{0};
+    int summaryWave_{1};
+    int summaryAsteroidsDestroyed_{0};
+    int summaryEnemySaucersDestroyed_{0};
+    int summaryWavePoints_{0};
     int enemySaucerPassesThisWave_{0};
     float enemySaucerSpawnDelaySeconds_{0.0F};
     float fireCooldownSeconds_{0.0F};
     float splashSecondsRemaining_{3.0F};
+    float waveSummarySecondsRemaining_{0.0F};
     float backgroundBeatSeconds_{0.0F};
     float rotateLeftGraceSeconds_{0.0F};
     float rotateRightGraceSeconds_{0.0F};

@@ -44,6 +44,10 @@ constexpr float kEnemySaucerFirstRespawnDelay = 30.0F;
 constexpr float kEnemySaucerRespawnDelayStep = 4.0F;
 constexpr float kEnemySaucerMinRespawnDelay = 10.0F;
 constexpr int kEnemySaucerScore = 500;
+constexpr int kWaveClearBonusScore = 500;
+constexpr float kWaveSummarySeconds = 5.0F;
+constexpr float kFloatingScoreVisibleSeconds = 1.0F;
+constexpr float kFloatingScoreRisePixels = 24.0F;
 
 bool isKey(SDL_Scancode actualScancode, SDL_Keycode actualKey, SDL_Scancode expectedScancode, SDL_Keycode expectedKey)
 {
@@ -109,6 +113,7 @@ const std::array<const char*, 7>& glyphRows(char glyph)
         {'8', {"01110", "10001", "10001", "01110", "10001", "10001", "01110"}},
         {'9', {"01110", "10001", "10001", "01111", "00001", "00001", "01110"}},
         {'A', {"01110", "10001", "10001", "11111", "10001", "10001", "10001"}},
+        {'B', {"11110", "10001", "10001", "11110", "10001", "10001", "11110"}},
         {'C', {"01111", "10000", "10000", "10000", "10000", "10000", "01111"}},
         {'D', {"11110", "10001", "10001", "10001", "10001", "10001", "11110"}},
         {'E', {"11111", "10000", "10000", "11110", "10000", "10000", "11111"}},
@@ -130,6 +135,7 @@ const std::array<const char*, 7>& glyphRows(char glyph)
         {'W', {"10001", "10001", "10001", "10101", "10101", "10101", "01010"}},
         {'Y', {"10001", "10001", "01010", "00100", "00100", "00100", "00100"}},
         {':', {"00000", "00100", "00100", "00000", "00100", "00100", "00000"}},
+        {'+', {"00000", "00100", "00100", "11111", "00100", "00100", "00000"}},
         {'-', {"00000", "00000", "00000", "11111", "00000", "00000", "00000"}},
     };
     static const std::array<const char*, 7> fallback{"11111", "00001", "00010", "00100", "00100", "00000", "00100"};
@@ -370,6 +376,23 @@ bool Game::loadAudio()
     }
     SDL_SetAudioStreamGain(playerShipDestroyedStream_, 0.9F);
     SDL_ResumeAudioStreamDevice(playerShipDestroyedStream_);
+
+    SDL_AudioSpec waveClearSpec{};
+    if (!SDL_LoadWAV(assetPath("sounds/wave_clear_fanfare.wav").c_str(), &waveClearSpec, &waveClearFanfareBuffer_, &waveClearFanfareBufferLength_)) {
+        std::fprintf(stderr, "Could not load wave clear fanfare sound: %s\n", SDL_GetError());
+        return false;
+    }
+
+    waveClearFanfareStream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &waveClearSpec, nullptr, nullptr);
+    if (!waveClearFanfareStream_) {
+        std::fprintf(stderr, "Could not open wave clear fanfare audio stream: %s\n", SDL_GetError());
+        SDL_free(waveClearFanfareBuffer_);
+        waveClearFanfareBuffer_ = nullptr;
+        waveClearFanfareBufferLength_ = 0;
+        return false;
+    }
+    SDL_SetAudioStreamGain(waveClearFanfareStream_, 0.85F);
+    SDL_ResumeAudioStreamDevice(waveClearFanfareStream_);
     return true;
 }
 
@@ -461,6 +484,10 @@ void Game::destroyAudio()
         SDL_DestroyAudioStream(playerShipDestroyedStream_);
         playerShipDestroyedStream_ = nullptr;
     }
+    if (waveClearFanfareStream_) {
+        SDL_DestroyAudioStream(waveClearFanfareStream_);
+        waveClearFanfareStream_ = nullptr;
+    }
     if (thrustStream_) {
         SDL_DestroyAudioStream(thrustStream_);
         thrustStream_ = nullptr;
@@ -503,6 +530,11 @@ void Game::destroyAudio()
         playerShipDestroyedBuffer_ = nullptr;
         playerShipDestroyedBufferLength_ = 0;
     }
+    if (waveClearFanfareBuffer_) {
+        SDL_free(waveClearFanfareBuffer_);
+        waveClearFanfareBuffer_ = nullptr;
+        waveClearFanfareBufferLength_ = 0;
+    }
 }
 
 void Game::resetGame()
@@ -515,6 +547,7 @@ void Game::resetGame()
     breakAnimations_.clear();
     saucerExplosions_.clear();
     playerExplosions_.clear();
+    floatingScores_.clear();
     enemySaucer_ = {};
     enemySaucerSpawnQueued_ = false;
     enemySaucerSpawnedThisWave_ = false;
@@ -523,8 +556,10 @@ void Game::resetGame()
     wave_ = 1;
     asteroidsDestroyedThisWave_ = 0;
     largeAsteroidsDestroyedThisWave_ = 0;
+    enemySaucersDestroyedThisWave_ = 0;
     enemySaucerPassesThisWave_ = 0;
     enemySaucerSpawnDelaySeconds_ = 0.0F;
+    waveSummarySecondsRemaining_ = 0.0F;
     fireCooldownSeconds_ = 0.0F;
     backgroundBeatSeconds_ = 0.2F;
     spawnWave();
@@ -540,6 +575,7 @@ void Game::jumpToWave(int wave)
     breakAnimations_.clear();
     saucerExplosions_.clear();
     playerExplosions_.clear();
+    floatingScores_.clear();
     enemySaucer_ = {};
     stopEnemySaucerSound();
     ship_.position = {kWindowWidth / 2.0F, kWindowHeight / 2.0F};
@@ -558,6 +594,7 @@ void Game::spawnWave()
 {
     asteroidsDestroyedThisWave_ = 0;
     largeAsteroidsDestroyedThisWave_ = 0;
+    enemySaucersDestroyedThisWave_ = 0;
     enemySaucerPassesThisWave_ = 0;
     enemyBullets_.clear();
     enemySaucer_ = {};
@@ -565,7 +602,9 @@ void Game::spawnWave()
     enemySaucerSpawnQueued_ = false;
     enemySaucerSpawnedThisWave_ = false;
     enemySaucerSpawnDelaySeconds_ = 0.0F;
+    waveSummarySecondsRemaining_ = 0.0F;
     backgroundBeatSeconds_ = kBackgroundBeatMaxInterval;
+    waveStartScore_ = score_;
     const int asteroidCount = kBaseAsteroids + wave_;
     waveStartingAsteroids_ = asteroidCount;
     waveStartingLargeAsteroids_ = asteroidCount;
@@ -576,6 +615,23 @@ void Game::spawnWave()
         } while (length(position - Vec2{kWindowWidth / 2.0F, kWindowHeight / 2.0F}) < 170.0F);
         spawnAsteroid(position, AsteroidSize::Large);
     }
+}
+
+void Game::startWaveSummary()
+{
+    score_ += kWaveClearBonusScore;
+    summaryWave_ = wave_;
+    summaryAsteroidsDestroyed_ = asteroidsDestroyedThisWave_;
+    summaryEnemySaucersDestroyed_ = enemySaucersDestroyedThisWave_;
+    summaryWavePoints_ = score_ - waveStartScore_;
+    waveSummarySecondsRemaining_ = kWaveSummarySeconds;
+
+    bullets_.clear();
+    enemyBullets_.clear();
+    enemySaucer_ = {};
+    stopEnemySaucerSound();
+    playWaveClearFanfareSound();
+    state_ = State::WaveSummary;
 }
 
 void Game::spawnAsteroid(Vec2 position, AsteroidSize size)
@@ -627,6 +683,11 @@ void Game::spawnSaucerExplosion(Vec2 position)
 void Game::spawnPlayerExplosion(Vec2 position)
 {
     playerExplosions_.push_back({position, 0.0F});
+}
+
+void Game::spawnFloatingScore(Vec2 position, int points, float delaySeconds)
+{
+    floatingScores_.push_back({position, points, delaySeconds, 0.0F});
 }
 
 void Game::fireBullet()
@@ -687,6 +748,16 @@ void Game::playPlayerShipDestroyedSound()
 
     SDL_ClearAudioStream(playerShipDestroyedStream_);
     SDL_PutAudioStreamData(playerShipDestroyedStream_, playerShipDestroyedBuffer_, static_cast<int>(playerShipDestroyedBufferLength_));
+}
+
+void Game::playWaveClearFanfareSound()
+{
+    if (!waveClearFanfareStream_ || !waveClearFanfareBuffer_ || waveClearFanfareBufferLength_ == 0) {
+        return;
+    }
+
+    SDL_ClearAudioStream(waveClearFanfareStream_);
+    SDL_PutAudioStreamData(waveClearFanfareStream_, waveClearFanfareBuffer_, static_cast<int>(waveClearFanfareBufferLength_));
 }
 
 void Game::updateThrustSound()
@@ -994,6 +1065,23 @@ void Game::update(float deltaSeconds)
         }
     } else if (state_ == State::Playing) {
         updatePlaying(deltaSeconds);
+    } else if (state_ == State::WaveSummary) {
+        thrusting_ = false;
+        updateThrustSound();
+        waveSummarySecondsRemaining_ -= deltaSeconds;
+        updateBreakAnimations(deltaSeconds);
+        updateSaucerExplosions(deltaSeconds);
+        updatePlayerExplosions(deltaSeconds);
+        updateFloatingScores(deltaSeconds);
+        if (waveSummarySecondsRemaining_ <= 0.0F) {
+            ++wave_;
+            spawnWave();
+            ship_.position = {kWindowWidth / 2.0F, kWindowHeight / 2.0F};
+            ship_.velocity = {};
+            ship_.angleDegrees = 0.0F;
+            ship_.invulnerableSeconds = 1.5F;
+            state_ = State::Playing;
+        }
     } else {
         thrusting_ = false;
         updateThrustSound();
@@ -1091,8 +1179,13 @@ void Game::updatePlaying(float deltaSeconds)
             enemySaucer_ = {};
             stopEnemySaucerSound();
             spawnSaucerExplosion(destroyedPosition);
+            const float scoreDelaySeconds = saucerExplosionFrames_.empty()
+                ? 0.0F
+                : static_cast<float>(saucerExplosionFrames_.size()) * kSaucerExplosionFrameSeconds;
+            spawnFloatingScore(destroyedPosition, kEnemySaucerScore, scoreDelaySeconds);
             playEnemySaucerDestroyedSound();
             score_ += kEnemySaucerScore;
+            ++enemySaucersDestroyedThisWave_;
             break;
         }
     }
@@ -1106,6 +1199,7 @@ void Game::updatePlaying(float deltaSeconds)
     updateBreakAnimations(deltaSeconds);
     updateSaucerExplosions(deltaSeconds);
     updatePlayerExplosions(deltaSeconds);
+    updateFloatingScores(deltaSeconds);
 
     for (std::size_t bulletIndex = 0; bulletIndex < bullets_.size();) {
         bool bulletRemoved = false;
@@ -1159,13 +1253,7 @@ void Game::updatePlaying(float deltaSeconds)
     }
 
     if (asteroids_.empty()) {
-        ++wave_;
-        score_ += 500;
-        bullets_.clear();
-        enemyBullets_.clear();
-        enemySaucer_ = {};
-        stopEnemySaucerSound();
-        spawnWave();
+        startWaveSummary();
     }
 }
 
@@ -1209,6 +1297,17 @@ void Game::updatePlayerExplosions(float deltaSeconds)
     }), playerExplosions_.end());
 }
 
+void Game::updateFloatingScores(float deltaSeconds)
+{
+    for (auto& score : floatingScores_) {
+        score.elapsedSeconds += deltaSeconds;
+    }
+
+    floatingScores_.erase(std::remove_if(floatingScores_.begin(), floatingScores_.end(), [](const FloatingScore& score) {
+        return score.elapsedSeconds >= score.delaySeconds + kFloatingScoreVisibleSeconds;
+    }), floatingScores_.end());
+}
+
 void Game::render()
 {
     SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255);
@@ -1223,6 +1322,9 @@ void Game::render()
     } else if (state_ == State::Paused) {
         renderPlaying();
         renderPaused();
+    } else if (state_ == State::WaveSummary) {
+        renderPlaying();
+        renderWaveSummary();
     } else if (state_ == State::GameOver) {
         renderPlaying();
         renderGameOver();
@@ -1268,6 +1370,7 @@ void Game::renderPlaying()
     renderBreakAnimations();
     renderSaucerExplosions();
     renderPlayerExplosions();
+    renderFloatingScores();
     renderEnemySaucer();
 
     SDL_SetRenderDrawColor(renderer_, 255, 230, 70, 255);
@@ -1300,6 +1403,22 @@ void Game::renderPaused()
     drawCenteredText("PRESS P", kWindowHeight * 0.50F, 2, {255, 210, 60, 255});
 }
 
+void Game::renderWaveSummary()
+{
+    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 225);
+    SDL_FRect panel{0.0F, kWindowHeight * 0.24F, static_cast<float>(kWindowWidth), 360.0F};
+    SDL_RenderFillRect(renderer_, &panel);
+
+    drawCenteredText("WAVE " + std::to_string(summaryWave_) + " CLEAR", kWindowHeight * 0.29F, 4, {255, 255, 255, 255});
+    drawCenteredText("ASTEROIDS:" + std::to_string(summaryAsteroidsDestroyed_), kWindowHeight * 0.40F, 3, {180, 220, 255, 255});
+    drawCenteredText("SAUCERS:" + std::to_string(summaryEnemySaucersDestroyed_), kWindowHeight * 0.47F, 3, {180, 220, 255, 255});
+    drawCenteredText("WAVE BONUS:" + std::to_string(kWaveClearBonusScore), kWindowHeight * 0.54F, 3, {255, 210, 60, 255});
+    drawCenteredText("WAVE SCORE:" + std::to_string(summaryWavePoints_), kWindowHeight * 0.63F, 3, {255, 255, 255, 255});
+
+    const int secondsRemaining = std::max(1, static_cast<int>(std::ceil(waveSummarySecondsRemaining_)));
+    drawCenteredText("CONTINUES IN " + std::to_string(secondsRemaining), kWindowHeight * 0.73F, 2, {255, 210, 60, 255});
+}
+
 void Game::renderGameOver()
 {
     SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 210);
@@ -1319,11 +1438,42 @@ void Game::renderShip()
 
 void Game::renderHud()
 {
-    drawText("SCORE:" + std::to_string(score_), 12.0F, 12.0F, 2, {255, 255, 255, 255});
-    drawText("LIVES:" + std::to_string(lives_), 12.0F, 42.0F, 2, {255, 255, 255, 255});
-    drawText("WAVE:" + std::to_string(wave_), 12.0F, 72.0F, 2, {255, 255, 255, 255});
+    constexpr float hudY = 14.0F;
+    constexpr float thirdWidth = static_cast<float>(kWindowWidth) / 3.0F;
+    const auto drawHudText = [this](const std::string& text, float centerX) {
+        constexpr int scale = 3;
+        const float width = static_cast<float>(text.size() * 6 * scale);
+        drawText(text, centerX - (width / 2.0F), hudY, scale, {255, 255, 255, 255});
+    };
+
+    drawHudText("SCORE:" + std::to_string(score_), thirdWidth * 0.5F);
+    drawHudText("WAVE:" + std::to_string(wave_), thirdWidth * 1.5F);
+
+    constexpr int hudScale = 3;
+    constexpr float lifeShipWidth = 24.0F;
+    constexpr float lifeShipHeight = 18.0F;
+    constexpr float lifeShipGap = 6.0F;
+    constexpr float livesLabelGap = 12.0F;
+    const std::string livesLabel = "LIVES:";
+    const int visibleLives = std::clamp(lives_, 0, 5);
+    const float livesLabelWidth = static_cast<float>(livesLabel.size() * 6 * hudScale);
+    const float lifeShipsWidth = visibleLives > 0
+        ? (static_cast<float>(visibleLives) * lifeShipWidth) + (static_cast<float>(visibleLives - 1) * lifeShipGap)
+        : 0.0F;
+    const float livesWidth = livesLabelWidth + (visibleLives > 0 ? livesLabelGap + lifeShipsWidth : 0.0F);
+    const float livesX = (thirdWidth * 2.5F) - (livesWidth / 2.0F);
+    drawText(livesLabel, livesX, hudY, hudScale, {255, 255, 255, 255});
+    if (shipTexture_.handle) {
+        float shipX = livesX + livesLabelWidth + livesLabelGap;
+        for (int i = 0; i < visibleLives; ++i) {
+            SDL_FRect dst{shipX, hudY + 1.0F, lifeShipWidth, lifeShipHeight};
+            SDL_RenderTextureRotated(renderer_, shipTexture_.handle, nullptr, &dst, 90.0F, nullptr, SDL_FLIP_NONE);
+            shipX += lifeShipWidth + lifeShipGap;
+        }
+    }
+
     if (ship_.invulnerableSeconds > 0.0F) {
-        drawText("PROTECTED", 12.0F, 102.0F, 2, {255, 210, 60, 255});
+        drawText("PROTECTED", 12.0F, 54.0F, 2, {255, 210, 60, 255});
     }
 
     if (diagnosticsEnabled_) {
@@ -1447,6 +1597,24 @@ void Game::renderPlayerExplosions()
             texture.height
         };
         SDL_RenderTexture(renderer_, texture.handle, nullptr, &dst);
+    }
+}
+
+void Game::renderFloatingScores()
+{
+    for (const auto& score : floatingScores_) {
+        if (score.elapsedSeconds < score.delaySeconds) {
+            continue;
+        }
+
+        const float visibleSeconds = score.elapsedSeconds - score.delaySeconds;
+        const float progress = std::clamp(visibleSeconds / kFloatingScoreVisibleSeconds, 0.0F, 1.0F);
+        const std::string text = "+" + std::to_string(score.points);
+        constexpr int scale = 2;
+        const float width = static_cast<float>(text.size() * 6 * scale);
+        const float y = score.position.y - (progress * kFloatingScoreRisePixels);
+        const Uint8 alpha = static_cast<Uint8>(255.0F * (1.0F - progress));
+        drawText(text, score.position.x - (width / 2.0F), y, scale, {255, 230, 70, alpha});
     }
 }
 
