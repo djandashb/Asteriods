@@ -65,8 +65,10 @@ private:
     struct Bullet {
         Vec2 position{};
         Vec2 velocity{};
-        float lifeSeconds{1.0F};
+        float maxLifeSeconds{2.0F};
         float radius{3.0F};
+        bool hasWrapped{false};
+        float wrappedDistanceRemaining{0.0F};
     };
 
     struct Asteroid {
@@ -79,6 +81,37 @@ private:
         float spinDegreesPerSecond{0.0F};
     };
 
+    struct BreakAnimation {
+        Vec2 position{};
+        AsteroidSize size{AsteroidSize::Large};
+        float elapsedSeconds{0.0F};
+    };
+
+    struct SaucerExplosion {
+        Vec2 position{};
+        float elapsedSeconds{0.0F};
+    };
+
+    struct PlayerExplosion {
+        Vec2 position{};
+        float elapsedSeconds{0.0F};
+    };
+
+    struct EnemySaucer {
+        Vec2 position{};
+        Vec2 velocity{};
+        float radius{26.0F};
+        float fireCooldownSeconds{1.6F};
+        bool active{false};
+    };
+
+    struct EnemyBullet {
+        Vec2 position{};
+        Vec2 velocity{};
+        float lifeSeconds{1.8F};
+        float radius{3.0F};
+    };
+
     struct InputState {
         bool rotateLeft{false};
         bool rotateRight{false};
@@ -89,23 +122,38 @@ private:
     bool loadAssets();
     bool loadAudio();
     Texture loadTexture(const std::string& path);
+    std::vector<Texture> loadBreakFrames(const std::string& directory, int frameCount);
     void destroyAssets();
     void destroyAudio();
 
     void resetGame();
+    void jumpToWave(int wave);
     void spawnWave();
     void spawnAsteroid(Vec2 position, AsteroidSize size);
     void splitAsteroid(const Asteroid& asteroid);
+    void spawnBreakAnimation(const Asteroid& asteroid);
+    void spawnSaucerExplosion(Vec2 position);
+    void spawnPlayerExplosion(Vec2 position);
     void fireBullet();
     void playAsteroidHitSound(AsteroidSize size);
     void playMissileFireSound();
+    void playEnemySaucerDestroyedSound();
+    void playPlayerShipDestroyedSound();
     void updateThrustSound();
     void updateBackgroundBeat(float deltaSeconds);
     void playBackgroundBeatPulse();
+    void updateEnemySaucer(float deltaSeconds);
+    void spawnEnemySaucer();
+    void fireEnemySaucerBullet();
+    void updateEnemySaucerSound();
+    void stopEnemySaucerSound();
 
     void handleEvents(bool& running);
     void update(float deltaSeconds);
     void updatePlaying(float deltaSeconds);
+    void updateBreakAnimations(float deltaSeconds);
+    void updateSaucerExplosions(float deltaSeconds);
+    void updatePlayerExplosions(float deltaSeconds);
     void render();
 
     void renderSplash();
@@ -115,6 +163,11 @@ private:
     void renderGameOver();
     void renderShip();
     void renderHud();
+    void renderDiagnostics();
+    void renderBreakAnimations();
+    void renderSaucerExplosions();
+    void renderPlayerExplosions();
+    void renderEnemySaucer();
     void drawText(const std::string& text, float x, float y, int scale, SDL_Color color);
     void drawGlyph(char glyph, float x, float y, int scale, SDL_Color color);
     void drawCenteredText(const std::string& text, float y, int scale, SDL_Color color);
@@ -133,14 +186,25 @@ private:
 
     Ship ship_{};
     std::vector<Bullet> bullets_;
+    std::vector<EnemyBullet> enemyBullets_;
     std::vector<Asteroid> asteroids_;
+    std::vector<BreakAnimation> breakAnimations_;
+    std::vector<SaucerExplosion> saucerExplosions_;
+    std::vector<PlayerExplosion> playerExplosions_;
+    EnemySaucer enemySaucer_{};
 
     Texture shipTexture_{};
     Texture shipThrustTexture_{};
+    Texture enemySaucerTexture_{};
     Texture logoTexture_{};
     std::array<Texture, 3> largeAsteroids_{};
     std::array<Texture, 3> mediumAsteroids_{};
     std::array<Texture, 3> smallAsteroids_{};
+    std::vector<Texture> largeBreakFrames_;
+    std::vector<Texture> mediumBreakFrames_;
+    std::vector<Texture> smallBreakFrames_;
+    std::vector<Texture> saucerExplosionFrames_;
+    std::vector<Texture> playerExplosionFrames_;
     SDL_AudioStream* asteroidHitStream_{nullptr};
     Uint8* asteroidHitBuffer_{nullptr};
     Uint32 asteroidHitBufferLength_{0};
@@ -153,12 +217,26 @@ private:
     SDL_AudioStream* backgroundBeatStream_{nullptr};
     std::vector<Sint16> backgroundBeatLow_;
     std::vector<Sint16> backgroundBeatHigh_;
+    SDL_AudioStream* enemySaucerStream_{nullptr};
+    Uint8* enemySaucerBuffer_{nullptr};
+    Uint32 enemySaucerBufferLength_{0};
+    SDL_AudioStream* enemySaucerDestroyedStream_{nullptr};
+    Uint8* enemySaucerDestroyedBuffer_{nullptr};
+    Uint32 enemySaucerDestroyedBufferLength_{0};
+    SDL_AudioStream* playerShipDestroyedStream_{nullptr};
+    Uint8* playerShipDestroyedBuffer_{nullptr};
+    Uint32 playerShipDestroyedBufferLength_{0};
 
     std::mt19937 rng_;
     int score_{0};
     int lives_{5};
     int wave_{1};
+    int waveStartingAsteroids_{0};
+    int waveStartingLargeAsteroids_{0};
     int asteroidsDestroyedThisWave_{0};
+    int largeAsteroidsDestroyedThisWave_{0};
+    int enemySaucerPassesThisWave_{0};
+    float enemySaucerSpawnDelaySeconds_{0.0F};
     float fireCooldownSeconds_{0.0F};
     float splashSecondsRemaining_{3.0F};
     float backgroundBeatSeconds_{0.0F};
@@ -166,6 +244,9 @@ private:
     float rotateRightGraceSeconds_{0.0F};
     float thrustAudioGraceSeconds_{0.0F};
     bool thrusting_{false};
+    bool enemySaucerSpawnQueued_{false};
+    bool enemySaucerSpawnedThisWave_{false};
+    bool diagnosticsEnabled_{false};
     SDL_Scancode lastScancode_{SDL_SCANCODE_UNKNOWN};
     SDL_Keycode lastKeycode_{0};
     bool lastKeyPressed_{false};

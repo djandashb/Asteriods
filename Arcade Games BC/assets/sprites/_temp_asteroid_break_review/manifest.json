@@ -1,0 +1,76 @@
+{
+  "animations": [
+    {
+      "name": "large_break_radial",
+      "frames": [
+        "frame_00.png",
+        "frame_01.png",
+        "frame_02.png",
+        "frame_03.png",
+        "frame_04.png",
+        "frame_05.png",
+        "frame_06.png",
+        "frame_07.png",
+        "frame_08.png",
+        "frame_09.png",
+        "frame_10.png",
+        "frame_11.png"
+      ],
+      "sprite_sheet": "large_break_radial_sheet.png",
+      "canvas": [
+        192,
+        192
+      ],
+      "frame_count": 12,
+      "frame_ms": 56,
+      "duration_seconds": 0.672,
+      "notes": "Transparent PNG frames. Shards drift radially outward and fade out."
+    },
+    {
+      "name": "medium_break_radial",
+      "frames": [
+        "frame_00.png",
+        "frame_01.png",
+        "frame_02.png",
+        "frame_03.png",
+        "frame_04.png",
+        "frame_05.png",
+        "frame_06.png",
+        "frame_07.png",
+        "frame_08.png",
+        "frame_09.png"
+      ],
+      "sprite_sheet": "medium_break_radial_sheet.png",
+      "canvas": [
+        144,
+        144
+      ],
+      "frame_count": 10,
+      "frame_ms": 56,
+      "duration_seconds": 0.56,
+      "notes": "Transparent PNG frames. Shards drift radially outward and fade out."
+    },
+    {
+      "name": "small_break_radial",
+      "frames": [
+        "frame_00.png",
+        "frame_01.png",
+        "frame_02.png",
+        "frame_03.png",
+        "frame_04.png",
+        "frame_05.png",
+        "frame_06.png",
+        "frame_07.png"
+      ],
+      "sprite_sheet": "small_break_radial_sheet.png",
+      "canvas": [
+        112,
+        112
+      ],
+      "frame_count": 8,
+      "frame_ms": 56,
+      "duration_seconds": 0.448,
+      "notes": "Transparent PNG frames. Shards drift radially outward and fade out."
+    }
+  ]
+}

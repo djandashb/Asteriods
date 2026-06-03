@@ -1,0 +1,37 @@
+{
+  "animations": [
+    {
+      "name": "enemy_saucer_explosion",
+      "frames": [
+        "frame_00.png",
+        "frame_01.png",
+        "frame_02.png",
+        "frame_03.png",
+        "frame_04.png",
+        "frame_05.png",
+        "frame_06.png",
+        "frame_07.png",
+        "frame_08.png",
+        "frame_09.png",
+        "frame_10.png",
+        "frame_11.png"
+      ],
+      "sprite_sheet": "enemy_saucer_explosion_sheet.png",
+      "canvas": [
+        160,
+        160
+      ],
+      "frame_count": 12,
+      "frame_ms": 56,
+      "duration_seconds": 0.672
+    }
+  ],
+  "sounds": [
+    {
+      "name": "enemy_saucer_destroyed",
+      "path": "../../sounds/_temp_enemy_saucer_explosion_review/enemy_saucer_destroyed.wav",
+      "format": "44100Hz 16-bit stereo PCM WAV",
+      "notes": "Short metallic burst plus noisy arcade crack for enemy saucer destruction."
+    }
+  ]
+}

@@ -75,4 +75,7 @@ Controls:
 - `F`: fire
 - Arrow keys or `WASD`: move
 - `P`: pause/resume
+- `Fn+F10` / `F10`: toggle diagnostics
+- `F5` / `F6`: developer wave down/up
+- `F9`: developer spawn enemy saucer
 - `Esc`: quit

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Player Ship Explosion Review</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Menlo, Monaco, Consolas, monospace;
+      background: #05070a;
+      color: #f2f5f7;
+    }
+
+    body {
+      margin: 0;
+      padding: 28px;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 20px;
+      font-size: 20px;
+    }
+
+    h2 {
+      margin: 26px 0 12px;
+      font-size: 15px;
+      color: #8fdcff;
+    }
+
+    .stage {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 22px;
+      align-items: start;
+    }
+
+    .viewport {
+      width: 384px;
+      height: 384px;
+      object-fit: none;
+      transform-origin: top left;
+      image-rendering: pixelated;
+      background:
+        linear-gradient(45deg, #101820 25%, transparent 25%),
+        linear-gradient(-45deg, #101820 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #101820 75%),
+        linear-gradient(-45deg, transparent 75%, #101820 75%),
+        #070b11;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+      background-size: 16px 16px;
+      border: 1px solid #24384a;
+    }
+
+    .frames {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .frames img {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+      image-rendering: pixelated;
+      background: #080d13;
+      border: 1px solid #1d2d3a;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #9fb2c1;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Player Ship Explosion Review</h1>
+
+    <h2>Animation</h2>
+    <div class="stage">
+      <img class="viewport" src="player_ship_explosion_sheet.png" alt="Player ship explosion sprite sheet">
+      <div>
+        <div class="frames" id="frames"></div>
+        <p>12 transparent PNG frames at 768 x 768, previewed at half scale. Timing is 70ms per frame.</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const frameCount = 12;
+    const frameSize = 768;
+    const frameMs = 70;
+    const root = document.getElementById('frames');
+    for (let frame = 0; frame < frameCount; frame += 1) {
+      const img = document.createElement('img');
+      img.src = `player_ship_explosion/frame_${String(frame).padStart(2, '0')}.png`;
+      img.alt = `Explosion frame ${frame}`;
+      root.appendChild(img);
+    }
+
+    const viewport = document.querySelector('.viewport');
+    let frame = 0;
+    setInterval(() => {
+      viewport.style.objectPosition = `${-((frame % frameCount) * frameSize)}px 0`;
+      viewport.style.width = '384px';
+      viewport.style.height = '384px';
+      viewport.style.transform = 'scale(0.5)';
+      frame += 1;
+    }, frameMs);
+  </script>
+</body>
+</html>

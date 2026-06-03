@@ -1,4 +1,18 @@
-build/
 .DS_Store
-*.user
-*.swp
+build/
+
+# Local editor/user state
+.vscode/*
+!.vscode/launch.json
+
+# CMake and compiler leftovers outside build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.o
+*.d
+*.a
+*.so
+*.dylib
+*.app/
